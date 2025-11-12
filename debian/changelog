@@ -1,0 +1,12 @@
+video-downloader (0.12.28-1) unstable; urgency=medium
+
+  * New upstream release
+  * Update dependencies
+
+ -- Video Downloader Developers <packaging@example.com>  Wed, 10 Jan 2024 00:00:00 +0000
+
+video-downloader (0.12.27-1) unstable; urgency=medium
+
+  * Initial Debian package
+
+ -- Video Downloader Developers <packaging@example.com>  Wed, 03 Jan 2024 00:00:00 +0000

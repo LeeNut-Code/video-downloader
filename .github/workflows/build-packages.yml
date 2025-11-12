@@ -1,0 +1,143 @@
+name: Build Packages
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ '*.*.*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-deb:
+    name: Build Debian Package
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: 设置构建依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y debhelper-compat=13 meson python3 python3-setuptools gettext libglib2.0-dev-bin
+
+      - name: 构建Debian包
+        run: |
+          # 设置版本
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION=${{ github.ref_name }}
+          else
+            VERSION=$(date +"%Y%m%d%H%M")
+          fi
+          # 更新changelog
+          dch -v "${VERSION}-1" -D unstable "Automatic build from GitHub Actions"
+          # 构建包
+          dpkg-buildpackage -us -uc -b
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v3
+        with:
+          name: debian-packages
+          path: ../video-downloader_*.deb
+          if-no-files-found: error
+
+  build-rpm:
+    name: Build RPM Package
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: 设置构建依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpmbuild python3-devel meson gettext glib2-devel
+
+      - name: 准备RPM构建环境
+        run: |
+          mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          echo "%_topdir ~/rpmbuild" > ~/.rpmmacros
+          # 打包源码
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION=${{ github.ref_name }}
+          else
+            VERSION=$(date +"%Y%m%d%H%M")
+          fi
+          tar czf ~/rpmbuild/SOURCES/video-downloader-${VERSION}.tar.gz --exclude=.git .
+          # 复制spec文件
+          cp video-downloader.spec ~/rpmbuild/SPECS/
+          # 更新spec文件中的版本
+          sed -i "s/Version:        .*/Version:        ${VERSION}/" ~/rpmbuild/SPECS/video-downloader.spec
+
+      - name: 构建RPM包
+        run: |
+          rpmbuild -ba ~/rpmbuild/SPECS/video-downloader.spec
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v3
+        with:
+          name: rpm-packages
+          path: ~/rpmbuild/RPMS/noarch/video-downloader-*.rpm
+          if-no-files-found: error
+
+  build-appimage:
+    name: Build AppImage
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: 设置构建依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y meson python3 python3-gi python3-gi-cairo libgtk-4-dev gettext ffmpeg pip
+          pip install yt-dlp
+
+      - name: 确保构建脚本可执行
+        run: |
+          chmod +x build-appimage.sh
+
+      - name: 构建AppImage
+        run: |
+          # 设置版本
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            export APP_VERSION=${{ github.ref_name }}
+          else
+            export APP_VERSION=$(date +"%Y%m%d%H%M")
+          fi
+          # 运行构建脚本
+          ./build-appimage.sh
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v3
+        with:
+          name: appimage
+          path: VideoDownloader-*-x86_64.AppImage
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    needs: [build-deb, build-rpm, build-appimage]
+    runs-on: ubuntu-22.04
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: 下载所有构建产物
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+
+      - name: 创建GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/debian-packages/*.deb
+            artifacts/rpm-packages/*.rpm
+            artifacts/appimage/*.AppImage
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

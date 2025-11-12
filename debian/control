@@ -1,0 +1,24 @@
+Source: video-downloader
+Section: video
+Priority: optional
+Maintainer: Video Downloader Developers <packaging@example.com>
+Build-Depends: debhelper-compat (= 13),
+               meson (>= 0.62.0),
+               python3,
+               python3-setuptools,
+               gettext,
+               libglib2.0-dev-bin
+Standards-Version: 4.6.2
+Homepage: https://github.com/unrud/video-downloader
+
+Package: video-downloader
+Architecture: all
+Depends: ${misc:Depends},
+         ${python3:Depends},
+         python3-gi,
+         python3-gi-cairo,
+         gir1.2-gtk-4.0,
+         yt-dlp,
+         ffmpeg
+Description: Simple video downloader for YouTube and many other websites
+ A GUI for yt-dlp that makes it easy to download videos from various websites.
